@@ -1,7 +1,8 @@
 import random
 import time
+import json
 
-leaderboard = {1: [], 2: [], 3: []}  # Store top 3 scores
+leaderboard = {1: [], 2: [], 3: []}
 
 def create_grid(size):
     num_pairs = (size * size) // 2
@@ -18,8 +19,7 @@ def pick_card(size):
         row, col = map(int, input("Pick a card (row col): ").split())
         if 0 <= row - 1 < size and 0 <= col - 1 < size:
             return row - 1, col - 1
-        else:
-            print("Invalid coordinates, try again.")
+        print("Invalid coordinates, try again.")
 
 def provide_hint(grid, revealed):
     row, col = random.choice([(r, c) for r in range(len(grid)) for c in range(len(grid)) if revealed[r][c] == "*"])
@@ -29,13 +29,35 @@ def provide_hint(grid, revealed):
     time.sleep(2)
     revealed[row][col] = "*"
 
-def play_game(size, time_limit=None):
-    grid = create_grid(size)
-    revealed = [["*" for _ in range(size)] for _ in range(size)]
-    matches = 0
-    attempts = 0
+def save_game(level, grid, revealed, attempts, matches, time_limit, start_time):
+    game_state = {
+        "level": level,
+        "grid": grid,
+        "revealed": revealed,
+        "attempts": attempts,
+        "matches": matches,
+        "time_limit": time_limit,
+        "start_time": time.time() - start_time
+    }
+    with open("matchmaster_save.json", "w") as file:
+        json.dump(game_state, file)
+    print("Game saved!")
+
+def load_game():
+    try:
+        with open("matchmaster_save.json", "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        print("No saved game found.")
+        return None
+
+def play_game(size, time_limit=None, grid=None, revealed=None, attempts=0, matches=0, start_time=None):
+    if not grid:
+        grid = create_grid(size)
+        revealed = [["*" for _ in range(size)] for _ in range(size)]
     total_matches = (size * size) // 2
-    start_time = time.time()
+    if not start_time:
+        start_time = time.time()
 
     while matches < total_matches:
         if time_limit and time.time() - start_time > time_limit:
@@ -62,8 +84,17 @@ def play_game(size, time_limit=None):
         else:
             print("No match.")
             revealed[r1][c1] = revealed[r2][c2] = "*"
+        
+        save_choice = input("Do you want to save the game? (y/n): ").lower()
+        if save_choice == 'y':
+            save_game(level, grid, revealed, attempts, matches, time_limit, start_time)
+            print("Exiting the game.")
+            return False
 
-    print(f"Congratulations! You matched all the pairs in {attempts} attempts!")
+    time_taken = time.time() - start_time
+    print(f"Congratulations! You matched all pairs in {attempts} attempts!")
+    print(f"Time taken: {int(time_taken)} seconds")
+    print(f"Average match speed: {time_taken / total_matches:.2f} seconds per match")
     return attempts
 
 def update_leaderboard(level, attempts):
@@ -75,14 +106,29 @@ def select_difficulty():
     print("Select difficulty: (1) Easy, (2) Medium, (3) Hard")
     choice = int(input("Enter choice: "))
     if choice == 1:
-        return 4, None  # Easy: 4x4 grid, no time limit
+        return 4, None
     elif choice == 2:
-        return 6, 120  # Medium: 6x6 grid, 120 seconds
+        return 6, 120
     elif choice == 3:
-        return 8, 180  # Hard: 8x8 grid, 180 seconds
+        return 8, 180
 
 def main():
     print("Welcome to MatchMaster!")
+    load_choice = input("Do you want to load a saved game? (y/n): ").lower()
+    if load_choice == 'y':
+        game_state = load_game()
+        if game_state:
+            play_game(
+                size=len(game_state['grid']),
+                time_limit=game_state['time_limit'],
+                grid=game_state['grid'],
+                revealed=game_state['revealed'],
+                attempts=game_state['attempts'],
+                matches=game_state['matches'],
+                start_time=time.time() - game_state['start_time']
+            )
+            return
+
     level = 1
     while True:
         print(f"\nLevel {level}")
