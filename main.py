@@ -1,6 +1,8 @@
 import random
 import time
 
+leaderboard = {1: [], 2: [], 3: []}  # Store top 3 scores
+
 def create_grid(size):
     num_pairs = (size * size) // 2
     cards = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[:num_pairs]) * 2
@@ -27,14 +29,19 @@ def provide_hint(grid, revealed):
     time.sleep(2)
     revealed[row][col] = "*"
 
-def play_game(size):
+def play_game(size, time_limit=None):
     grid = create_grid(size)
     revealed = [["*" for _ in range(size)] for _ in range(size)]
     matches = 0
     attempts = 0
     total_matches = (size * size) // 2
+    start_time = time.time()
 
     while matches < total_matches:
+        if time_limit and time.time() - start_time > time_limit:
+            print("Time's up! You lost!")
+            return False
+
         show_grid(revealed)
         hint_choice = input("Do you want a hint? (y/n): ").lower()
         if hint_choice == 'y':
@@ -57,15 +64,34 @@ def play_game(size):
             revealed[r1][c1] = revealed[r2][c2] = "*"
 
     print(f"Congratulations! You matched all the pairs in {attempts} attempts!")
+    return attempts
+
+def update_leaderboard(level, attempts):
+    leaderboard[level].append(attempts)
+    leaderboard[level] = sorted(leaderboard[level])[:3]
+    print(f"Top scores for Level {level}: {leaderboard[level]}")
+
+def select_difficulty():
+    print("Select difficulty: (1) Easy, (2) Medium, (3) Hard")
+    choice = int(input("Enter choice: "))
+    if choice == 1:
+        return 4, None  # Easy: 4x4 grid, no time limit
+    elif choice == 2:
+        return 6, 120  # Medium: 6x6 grid, 120 seconds
+    elif choice == 3:
+        return 8, 180  # Hard: 8x8 grid, 180 seconds
 
 def main():
     print("Welcome to MatchMaster!")
     level = 1
     while True:
         print(f"\nLevel {level}")
-        grid_size = 4 + level  # Increase grid size as level increases
-        play_game(grid_size)
-        
+        grid_size, time_limit = select_difficulty()
+        attempts = play_game(grid_size, time_limit)
+
+        if attempts:
+            update_leaderboard(level, attempts)
+
         cont = input("Do you want to continue to the next level? (y/n): ").lower()
         if cont == 'y':
             level += 1
