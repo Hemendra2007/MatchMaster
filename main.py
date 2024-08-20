@@ -1,10 +1,12 @@
 import random
 import time
 import json
+import os
 
 leaderboard = {1: [], 2: [], 3: []}
 achievements = {"No Hints": False, "Speedster": False, "Minimalist": False}
 game_stats = {"total_time_played": 0, "total_matches_found": 0}
+profiles = {}
 
 def create_grid(size):
     num_pairs = (size * size) // 2
@@ -38,7 +40,7 @@ def provide_hint(grid, revealed, start_time, time_limit):
         start_time -= penalty
         print(f"Time penalty: {penalty} seconds added to your time.")
 
-def save_game(level, grid, revealed, attempts, matches, time_limit, start_time):
+def save_game(slot, level, grid, revealed, attempts, matches, time_limit, start_time):
     game_state = {
         "level": level,
         "grid": grid,
@@ -48,17 +50,42 @@ def save_game(level, grid, revealed, attempts, matches, time_limit, start_time):
         "time_limit": time_limit,
         "start_time": time.time() - start_time
     }
-    with open("matchmaster_save.json", "w") as file:
+    with open(f"matchmaster_save_slot_{slot}.json", "w") as file:
         json.dump(game_state, file)
-    print("Game saved!")
+    print(f"Game saved in slot {slot}!")
 
-def load_game():
+def load_game(slot):
     try:
-        with open("matchmaster_save.json", "r") as file:
+        with open(f"matchmaster_save_slot_{slot}.json", "r") as file:
             return json.load(file)
     except FileNotFoundError:
-        print("No saved game found.")
+        print(f"No saved game found in slot {slot}.")
         return None
+
+def load_profile():
+    global achievements, game_stats
+    name = input("Enter your profile name: ")
+    if name in profiles:
+        achievements = profiles[name]["achievements"]
+        game_stats = profiles[name]["stats"]
+        print(f"Profile '{name}' loaded!")
+    else:
+        profiles[name] = {"achievements": achievements.copy(), "stats": game_stats.copy()}
+        print(f"New profile '{name}' created!")
+
+def save_profile():
+    global achievements, game_stats
+    name = input("Enter your profile name to save: ")
+    profiles[name] = {"achievements": achievements, "stats": game_stats}
+    with open("matchmaster_profiles.json", "w") as file:
+        json.dump(profiles, file)
+    print(f"Profile '{name}' saved!")
+
+def check_custom_achievements():
+    if game_stats["total_matches_found"] >= 50:
+        print("Achievement unlocked: Match Master! (Found 50 matches in total)")
+    if game_stats["total_time_played"] >= 3600:
+        print("Achievement unlocked: Marathon Player! (Played for over an hour)")
 
 def check_achievements(attempts, time_taken, hints_used, time_limit):
     if not hints_used:
@@ -70,6 +97,7 @@ def check_achievements(attempts, time_taken, hints_used, time_limit):
     if attempts <= (len(grid) * len(grid[0])) // 4:
         achievements["Minimalist"] = True
         print("Achievement unlocked: Minimalist!")
+    check_custom_achievements()
 
 def select_custom_level():
     while True:
@@ -100,6 +128,7 @@ def play_game(size, time_limit=None, grid=None, revealed=None, attempts=0, match
         if hint_choice == 'y':
             hints_used = True
             provide_hint(grid, revealed, start_time, time_limit)
+            time_limit += random.randint(5, 10)  # Adjust time limit after using a hint
         
         r1, c1 = pick_card(size)
         revealed[r1][c1] = grid[r1][c1]
@@ -120,7 +149,8 @@ def play_game(size, time_limit=None, grid=None, revealed=None, attempts=0, match
         
         save_choice = input("Do you want to save the game? (y/n): ").lower()
         if save_choice == 'y':
-            save_game(size, grid, revealed, attempts, matches, time_limit, start_time)
+            slot = input("Choose a slot to save (1-3): ")
+            save_game(slot, size, grid, revealed, attempts, matches, time_limit, start_time)
             print("Exiting the game.")
             return False
 
@@ -179,18 +209,15 @@ def multiplayer_mode(size, time_limit):
 
     winner = player_names[0] if scores[0] > scores[1] else player_names[1]
     print(f"Game over! {winner} wins with {max(scores)} matches!")
-    
-    replay = input("Do you want to replay multiplayer mode? (y/n): ").lower()
-    if replay == 'y':
+    if input("Do you want to replay multiplayer mode? (y/n): ").lower() == 'y':
         multiplayer_mode(size, time_limit)
-    else:
-        main()
 
 def main():
     print("Welcome to MatchMaster!")
     load_choice = input("Do you want to load a saved game? (y/n): ").lower()
     if load_choice == 'y':
-        game_state = load_game()
+        slot = input("Choose a slot to load (1-3): ")
+        game_state = load_game(slot)
         if game_state:
             play_game(
                 size=len(game_state['grid']),
@@ -202,6 +229,8 @@ def main():
                 start_time=time.time() - game_state['start_time']
             )
             return
+
+    load_profile()
 
     level = 1
     while True:
@@ -226,5 +255,7 @@ def main():
         else:
             print(f"Thanks for playing MatchMaster! Total time played: {int(game_stats['total_time_played'])} seconds. Total matches found: {game_stats['total_matches_found']}")
             break
+
+    save_profile()
 
 main()
