@@ -3,6 +3,7 @@ import time
 import json
 
 leaderboard = {1: [], 2: [], 3: []}
+achievements = {"No Hints": False, "Speedster": False}
 
 def create_grid(size):
     num_pairs = (size * size) // 2
@@ -10,9 +11,12 @@ def create_grid(size):
     random.shuffle(cards)
     return [cards[i:i + size] for i in range(0, size * size, size)]
 
-def show_grid(grid):
-    for row in grid:
-        print(" ".join(row))
+def show_grid(grid, revealed):
+    print("    " + "   ".join(str(i + 1) for i in range(len(grid))))
+    print("  +" + "---+" * len(grid))
+    for idx, row in enumerate(revealed):
+        print(f"{idx + 1} | " + " | ".join(row) + " |")
+        print("  +" + "---+" * len(grid))
 
 def pick_card(size):
     while True:
@@ -25,7 +29,7 @@ def provide_hint(grid, revealed):
     row, col = random.choice([(r, c) for r in range(len(grid)) for c in range(len(grid)) if revealed[r][c] == "*"])
     print(f"Hint: Revealing card at ({row+1}, {col+1})")
     revealed[row][col] = grid[row][col]
-    show_grid(revealed)
+    show_grid(grid, revealed)
     time.sleep(2)
     revealed[row][col] = "*"
 
@@ -51,6 +55,14 @@ def load_game():
         print("No saved game found.")
         return None
 
+def check_achievements(attempts, time_taken, hints_used, time_limit):
+    if not hints_used:
+        achievements["No Hints"] = True
+        print("Achievement unlocked: No Hints!")
+    if time_limit and time_taken <= time_limit / 2:
+        achievements["Speedster"] = True
+        print("Achievement unlocked: Speedster!")
+
 def play_game(size, time_limit=None, grid=None, revealed=None, attempts=0, matches=0, start_time=None):
     if not grid:
         grid = create_grid(size)
@@ -59,23 +71,25 @@ def play_game(size, time_limit=None, grid=None, revealed=None, attempts=0, match
     if not start_time:
         start_time = time.time()
 
+    hints_used = False
     while matches < total_matches:
         if time_limit and time.time() - start_time > time_limit:
             print("Time's up! You lost!")
             return False
 
-        show_grid(revealed)
+        show_grid(grid, revealed)
         hint_choice = input("Do you want a hint? (y/n): ").lower()
         if hint_choice == 'y':
+            hints_used = True
             provide_hint(grid, revealed)
         
         r1, c1 = pick_card(size)
         revealed[r1][c1] = grid[r1][c1]
-        show_grid(revealed)
+        show_grid(grid, revealed)
         
         r2, c2 = pick_card(size)
         revealed[r2][c2] = grid[r2][c2]
-        show_grid(revealed)
+        show_grid(grid, revealed)
 
         attempts += 1
         if grid[r1][c1] == grid[r2][c2]:
@@ -95,6 +109,8 @@ def play_game(size, time_limit=None, grid=None, revealed=None, attempts=0, match
     print(f"Congratulations! You matched all pairs in {attempts} attempts!")
     print(f"Time taken: {int(time_taken)} seconds")
     print(f"Average match speed: {time_taken / total_matches:.2f} seconds per match")
+
+    check_achievements(attempts, time_taken, hints_used, time_limit)
     return attempts
 
 def update_leaderboard(level, attempts):
@@ -111,6 +127,35 @@ def select_difficulty():
         return 6, 120
     elif choice == 3:
         return 8, 180
+
+def multiplayer_mode(size, time_limit):
+    grid = create_grid(size)
+    revealed = [["*" for _ in range(size)] for _ in range(size)]
+    scores = [0, 0]
+    turn = 0
+    print("Multiplayer mode: Player 1 vs Player 2")
+
+    while sum(scores) < (size * size) // 2:
+        show_grid(grid, revealed)
+        print(f"Player {turn + 1}'s turn")
+        r1, c1 = pick_card(size)
+        revealed[r1][c1] = grid[r1][c1]
+        show_grid(grid, revealed)
+        
+        r2, c2 = pick_card(size)
+        revealed[r2][c2] = grid[r2][c2]
+        show_grid(grid, revealed)
+
+        if grid[r1][c1] == grid[r2][c2]:
+            print(f"Player {turn + 1} found a match!")
+            scores[turn] += 1
+        else:
+            print("No match.")
+            revealed[r1][c1] = revealed[r2][c2] = "*"
+            turn = 1 - turn  # Switch turns
+
+    winner = "Player 1" if scores[0] > scores[1] else "Player 2"
+    print(f"Game over! {winner} wins with {max(scores)} matches!")
 
 def main():
     print("Welcome to MatchMaster!")
@@ -131,6 +176,12 @@ def main():
 
     level = 1
     while True:
+        mode_choice = input("Select mode: (1) Single Player, (2) Multiplayer: ").lower()
+        if mode_choice == '2':
+            grid_size, time_limit = select_difficulty()
+            multiplayer_mode(grid_size, time_limit)
+            break
+
         print(f"\nLevel {level}")
         grid_size, time_limit = select_difficulty()
         attempts = play_game(grid_size, time_limit)
@@ -141,6 +192,8 @@ def main():
         cont = input("Do you want to continue to the next level? (y/n): ").lower()
         if cont == 'y':
             level += 1
+        elif input("Do you want to replay this level? (y/n): ").lower() == 'y':
+            continue
         else:
             print("Thanks for playing MatchMaster!")
             break
